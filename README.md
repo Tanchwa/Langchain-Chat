@@ -21,7 +21,7 @@ Search) and offers a convenient interface for interacting with the data.
     ```
 3. Activate the virtual environment
     ```bash
-    source venv/Scripts/activate
+    source venv/bin/activate
     ```
 4. Install the dependencies
     ```bash
@@ -29,7 +29,7 @@ Search) and offers a convenient interface for interacting with the data.
     ```
 5. Copy the `.env.example` file to `.env` and fill in the required values
    ```bash
-   cp .env.example .env
+   cp example.env .env
    ```
    ```bash
    OPEN_AI_KEY = "sk-"
