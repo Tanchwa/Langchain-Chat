@@ -34,8 +34,8 @@ import time
 load_dotenv()
 logger = logging.getLogger(__name__)
 OPENAI_API_KEY = os.getenv('OPEN_AI_KEY')
-# WEBSITE_URL = os.getenv('WEBSITE_URLS')
-# WEBSITE_URLS = WEBSITE_URL.split(",")
+WEBSITE_URL = os.getenv('WEBSITE_URLS')
+WEBSITE_URLS = WEBSITE_URL.split(",")
 
 embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 chat = ChatOpenAI(temperature=0, openai_api_key=OPENAI_API_KEY)
@@ -236,8 +236,9 @@ def answer_questions(faiss_index):
 
 def main():
     faiss_obj_path = "models/ycla.pickle"
-    file_path = "data/ycla_en.pdf"
-    index_name = "ycla"
+    file_path = "data/test.pdf"
+    # index_name = "ycla"
+    index_name = "langchain-chat"
 
     train = int(input("Do you want to train the model? (1 for yes, 0 for no): "))
     faiss_index = train_or_load_model(train, faiss_obj_path, file_path, index_name)
