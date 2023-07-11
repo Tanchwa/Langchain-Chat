@@ -96,8 +96,9 @@ class URLHandler:
         return all_links
     
 class Document:
-    def __init__(self, content, metadata=None):
+    def __init__(self, content, title=None, metadata=None):
         self.content = content
+        self.title = title
         self.metadata = metadata or {}
         self.id = hashlib.sha256(self.content.encode()).hexdigest()
 
@@ -136,10 +137,11 @@ def load_and_split_documents(loader, text_splitter):
     documents = []
     for i, raw_doc in enumerate(raw_documents):
         doc = Document(
-            content=raw_doc.page_content,  # this is defined in the pdfparser library https://api.python.langchain.com/en/latest/_modules/langchain/document_loaders/parsers/pdf.html
+            content=raw_doc.page_content,
             metadata={
                 'source': loader.file_path,
                 'chunk_number': i,
+                'title': raw_doc.title,  # assuming `raw_doc` has a `title` attribute
             },
         )
         documents.append(doc)
@@ -153,7 +155,15 @@ def load_documents_into_pinecone(pinecone_manager, embeddings, train):
     text_splitter = SentenceAwareTextSplitter(chunk_size=5000)
 
     file_paths = glob.glob("data/*.pdf")
+    doc_title_to_chunk_count = {}  # New mapping from document title to number of chunks
+
     for file_path in file_paths:
+        # Extract the file name from the file path
+        file_name = os.path.basename(file_path)
+        
+        # Prompt the user for the document title
+        doc_title = input(f"Please enter a title for the document {file_name}: ")
+
         loader = PyPDFLoader(file_path)
         documents = load_and_split_documents(loader, text_splitter)
 
@@ -162,12 +172,18 @@ def load_documents_into_pinecone(pinecone_manager, embeddings, train):
             # generate an embedding for the document
             embedded_content = embeddings.embed_documents([doc.content])[0]
 
+            # add the document title to the metadata
+            doc.metadata["title"] = doc_title
+
             vector = {
                 "id": doc.id,
                 "values": embedded_content,
                 "metadata": doc.metadata,
             }
             ids_and_vectors.append(vector)
+
+        # Record the number of chunks for this document title
+        doc_title_to_chunk_count[doc_title] = len(ids_and_vectors)
 
         # add the documents to the Pinecone index
         pinecone_manager.get_index().upsert(ids_and_vectors)
@@ -182,10 +198,9 @@ def load_documents_into_pinecone(pinecone_manager, embeddings, train):
             if pinecone_manager.index_exists():
                 pinecone_manager.get_index().upsert(ids_and_vectors)
 
-    return pinecone_manager.get_index()
+    return pinecone_manager.get_index(), doc_title_to_chunk_count
 
-
-def answer_questions(pinecone_index, embeddings, chat):
+def answer_questions(pinecone_index, embeddings, chat, doc_title_to_chunk_count):
     messages = [
         SystemMessage(
             content='I want you to act as a document that I am having a conversation with. Your name is "AI '
@@ -194,15 +209,24 @@ def answer_questions(pinecone_index, embeddings, chat):
                     'stop after that. Refuse to answer any question not about the info in reference.')
     ]
     while True:
+        # Prompt the user for a document title
+        doc_title = input("Please enter a document title (or 'all' to search all documents): ")
+
         question = input("Please enter a question (or 'quit' to stop): ")
         if question.lower() == 'quit':
             break
 
+        top_k = doc_title_to_chunk_count.get(doc_title, 1)
+
         query_vector = embeddings.embed_query(question)
-        results = pinecone_index.query(queries=[query_vector], top_k=1)
+        results = pinecone_index.query(queries=[query_vector], top_k=top_k)
 
         # Check if any results were returned
         if results.ids and results.ids[0]:
+            # Filter the results based on the document title
+            if doc_title.lower() != 'all':
+                results = [result for result in results if result.metadata.get('title') == doc_title]
+            
             # Assemble the document chunks
             results = sorted(results, key=lambda result: result.metadata['chunk_number'])
             document = "\n".join([result.values for result in results])
