@@ -141,11 +141,12 @@ def load_and_split_documents(loader, text_splitter):
             metadata={
                 'source': loader.file_path,
                 'chunk_number': i,
-                'title': raw_doc.title,  # assuming `raw_doc` has a `title` attribute
+                'title': raw_doc.metadata.get('title'),  # access 'title' from the 'metadata' dictionary
             },
         )
         documents.append(doc)
     return documents
+
 
 
 def create_unique_id(doc):
@@ -200,14 +201,10 @@ def load_documents_into_pinecone(pinecone_manager, embeddings, train):
 
     return pinecone_manager.get_index(), doc_title_to_chunk_count
 
-def answer_questions(pinecone_index, embeddings, chat, doc_title_to_chunk_count):
-    messages = [
-        SystemMessage(
-            content='I want you to act as a document that I am having a conversation with. Your name is "AI '
-                    'Assistant". You will provide me with answers from the given info from reference. If the answer '
-                    'is not included, in reference say exactly "Hmm, I am not sure or give answer by yourself." and '
-                    'stop after that. Refuse to answer any question not about the info in reference.')
-    ]
+def count_tokens(text):
+    return len(text.split())
+
+def answer_questions(pinecone_index, embeddings, chat, doc_title_to_chunk_count, max_tokens=4096):
     while True:
         # Prompt the user for a document title
         doc_title = input("Please enter a document title (or 'all' to search all documents): ")
@@ -230,15 +227,18 @@ def answer_questions(pinecone_index, embeddings, chat, doc_title_to_chunk_count)
             # Assemble the document chunks
             results = sorted(results, key=lambda result: result.metadata['chunk_number'])
             document = "\n".join([result.values for result in results])
-            main_content = question + "\n\nreference:\n"
-            main_content += document + "\n\n"
 
-            messages.append(HumanMessage(content=main_content))
-            response = chat.generate_response([SystemMessage(content=question),
-                                               AIMessage(content=main_content, role="assistant")])
-            messages.pop()
-            messages.append(HumanMessage(content=question))
-            messages.append(AIMessage(content=response, role="assistant"))
+            # Add document to the chatbot prompt
+            prompt = f"{question}\n\nReference:\n{document}\n\n"
+
+            # Check if the prompt exceeds the maximum token limit
+            total_tokens = count_tokens(prompt)
+            if total_tokens > max_tokens:
+                print(f"Prompt length {total_tokens} exceeds maximum tokens {max_tokens}. Please ask a shorter question.")
+                continue
+
+            # Generate a response from the LLM based on the new prompt
+            response = chat.generate_response(prompt)
 
             print(response)
         else:
@@ -263,10 +263,10 @@ def main():
     if train == 1:
         print("Updating the model with documents from data/test.pdf")
         # load or update documents in the Pinecone index
-        load_documents_into_pinecone(pinecone_manager, embeddings, train)
+        pinecone_index, doc_title_to_chunk_count = load_documents_into_pinecone(pinecone_manager, embeddings, train)
 
     # start the question-answering loop
-    answer_questions(pinecone_manager.get_index(), embeddings, chat)
+    answer_questions(pinecone_index, embeddings, chat, doc_title_to_chunk_count)
 
     # deinitialize the index and client after you're done
     pinecone_manager.get_index().deinit()
