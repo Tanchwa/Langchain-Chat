@@ -7,3 +7,4 @@ __pycache__
 models
 .DS_Store
 output.txt
+**/*secret*.yaml

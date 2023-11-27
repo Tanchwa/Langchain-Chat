@@ -24,8 +24,17 @@ load_dotenv()
 # Get the Variables from the .env file
 OPENAI_API_KEY = os.getenv('OPEN_AI_KEY')
 MILVUS_COLLECTION_NAME = os.getenv('MILVUS_COLLECTION_NAME')
-embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-chat = ChatOpenAI(temperature=0, openai_api_key=OPENAI_API_KEY)
+embeddings = OpenAIEmbeddings(
+        azure_openai_api_key=OPENAI_API_KEY,
+        azure_open_ai_api_instance_name=AZURE_OPENAI_RESOURCE_NAME,
+        azure_openai_api_deployment_name=AZUER_OPENAI_DEPLOYMENT_NAME,
+        )
+chat = ChatOpenAI(
+        temperature=0,
+        azure_openai_api_key=OPENAI_API_KEY,
+        azure_open_ai_api_instance_name=AZURE_OPENAI_RESOURCE_NAME,
+        azure_openai_api_deployment_name=AZUER_OPENAI_DEPLOYMENT_NAME,
+        )
 
 DEFAULT_MILVUS_CONNECTION = {
     "host": os.getenv(""),

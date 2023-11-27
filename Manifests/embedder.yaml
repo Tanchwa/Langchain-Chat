@@ -1,0 +1,10 @@
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: milvus-embedder-conf
+data:
+  MILVUS_COLLECTION_NAME:
+  MILVUS_HOST: "milvus.ai-tests.svc.cluster.local"
+  MILVUS_PORT: ""
+  AZURE_OPEN_AI_URL: "https://langchain-test-aes.openai.azure.com/"
